@@ -9,9 +9,58 @@
             padding: 0;
             background-color: #000;
             display: flex;
+            height: 100vh;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            flex: 1;
+            display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+        }
+        #sidebar {
+            width: 250px;
+            background-color: #222;
+            color: #fff;
+            padding: 15px;
+            box-shadow: -2px 0 5px rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .sidebar-section {
+            border-bottom: 1px solid #444;
+            padding-bottom: 15px;
+        }
+        .sidebar-section h3 {
+            margin-top: 0;
+            color: #ddd;
+        }
+        .resources-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .resource-item {
+            background-color: #333;
+            padding: 8px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .control-button {
+            background-color: #555;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .control-button:hover {
+            background-color: #777;
         }
         canvas {
             display: block;
@@ -20,6 +69,31 @@
 </head>
 <body>
     <div id="game-container"></div>
+    <div id="sidebar">
+        <div class="sidebar-section">
+            <h3>Resources</h3>
+            <div id="resources-container" class="resources-container">
+                <!-- Resource items will be added here by JavaScript -->
+            </div>
+        </div>
+        <div class="sidebar-section">
+            <h3>Controls</h3>
+            <button id="place-yurt-btn" class="control-button">Place Yurt (P)</button>
+            <button id="cancel-btn" class="control-button">Cancel Action</button>
+        </div>
+        <div class="sidebar-section">
+            <h3>Selected Tile</h3>
+            <div id="tile-info">
+                No tile selected
+            </div>
+        </div>
+        <div class="sidebar-section">
+            <h3>Game Info</h3>
+            <div id="game-info">
+                Use WASD or arrow keys to move the camera.
+            </div>
+        </div>
+    </div>
     <script type="module" src="/src/index.ts"></script>
 </body>
 </html> 

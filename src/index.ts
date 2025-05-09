@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { generateMap } from './map/mapGenerator';
 import { renderMap, addYurtToMap, highlightTile } from './map/mapRenderer';
-import { initUI, updateResourceUI, showMessage } from './ui/uiManager';
+import { initUI, updateResourceUI, showMessage, updateSelectedTileInfo } from './ui/uiManager';
 import { YurtUnit, Tile, TerrainType } from './models';
 
 class GameScene extends Phaser.Scene {
@@ -56,11 +56,27 @@ class GameScene extends Phaser.Scene {
             showMessage(this, this.isPlacingYurt ? 'Placing Yurt: Click on a valid tile' : 'Yurt placement cancelled');
         });
         
+        // Add sidebar button event listeners
+        window.addEventListener('place-yurt-clicked', () => {
+            this.isPlacingYurt = !this.isPlacingYurt;
+            showMessage(this, this.isPlacingYurt ? 'Placing Yurt: Click on a valid tile' : 'Yurt placement cancelled');
+        });
+        
+        window.addEventListener('cancel-action-clicked', () => {
+            if (this.isPlacingYurt) {
+                this.isPlacingYurt = false;
+                showMessage(this, 'Yurt placement cancelled');
+            }
+        });
+        
         // Add welcome message
         showMessage(this, 'Welcome to TownYurd! Use WASD or arrows to move, P to place yurts');
         
         // Update the UI with initial values
         updateResourceUI(this.resources, this.yurtUnits);
+        
+        // Clear selected tile info
+        updateSelectedTileInfo(null);
 
         // Start automatic resource gathering every 5 seconds
         this.time.addEvent({
@@ -106,6 +122,9 @@ class GameScene extends Phaser.Scene {
             // Select the new tile
             this.selectedTile = clickedTile;
             this.selectedTileHighlight = highlightTile(clickedTile, this, this.tileSize);
+            
+            // Update the sidebar with selected tile info
+            updateSelectedTileInfo(clickedTile);
             
             // If in yurt placement mode, try to place a yurt
             if (this.isPlacingYurt) {
@@ -232,8 +251,8 @@ class GameScene extends Phaser.Scene {
 
 const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
-    width: 800,
-    height: 600,
+    width: window.innerWidth - 250, // Adjust for sidebar width
+    height: window.innerHeight,
     parent: 'game-container',
     scene: [GameScene],
     physics: {
@@ -242,18 +261,17 @@ const config: Phaser.Types.Core.GameConfig = {
             gravity: { x: 0, y: 0 }
         }
     },
-    render: {
-      pixelArt: true,
+    backgroundColor: '#2d2d2d',
+    scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_HORIZONTALLY
     }
 };
 
-// Ensure the DOM is ready before creating the game instance
-document.addEventListener('DOMContentLoaded', () => {
-    const gameContainer = document.getElementById('game-container');
-    if (!gameContainer) {
-        const newContainer = document.createElement('div');
-        newContainer.id = 'game-container';
-        document.body.appendChild(newContainer);
-    }
-    new Phaser.Game(config);
+// Create the game instance
+const game = new Phaser.Game(config);
+
+// Handle window resizing
+window.addEventListener('resize', () => {
+    game.scale.resize(window.innerWidth - 250, window.innerHeight);
 });
