@@ -1,0 +1,30 @@
+{
+  "name": "townyurd",
+  "version": "1.0.0",
+  "description": "Town Builder Roguelike",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Oscarrscso/TownYurd.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Oscarrscso/TownYurd/issues"
+  },
+  "homepage": "https://github.com/Oscarrscso/TownYurd#readme",
+  "dependencies": {
+    "phaser": "^3.80.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5"
+  }
+}
