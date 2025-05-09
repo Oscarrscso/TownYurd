@@ -225,6 +225,9 @@ class GameScene extends Phaser.Scene {
 
     // Automatically gather resources for each yurt from nearby tiles
     private collectResources(): void {
+        let totalFoodGain = 0;
+        let totalWoodGain = 0;
+        // Gather resources per yurt
         for (const yurt of this.yurtUnits) {
             let foodGain = 0;
             let woodGain = 0;
@@ -240,12 +243,29 @@ class GameScene extends Phaser.Scene {
                     }
                 }
             }
+            // Accumulate total gains
+            totalWoodGain += woodGain;
+            totalFoodGain += foodGain;
+            // Apply gains to resources
             this.resources.wood += woodGain;
             this.resources.food += foodGain;
             yurt.resources.wood += woodGain;
             yurt.resources.food += foodGain;
         }
+        // Food upkeep: each yurt consumes 1 food per cycle
+        const foodUpkeep = this.yurtUnits.length;
+        this.resources.food -= foodUpkeep;
+        // Update UI and show net resource change
         updateResourceUI(this.resources, this.yurtUnits);
+        showMessage(
+            this,
+            `Resources this cycle: +${totalFoodGain} food, +${totalWoodGain} wood; Upkeep: -${foodUpkeep} food`
+        );
+        // Update persistent stats in sidebar
+        const statsInfo = document.getElementById('stats-info');
+        if (statsInfo) {
+            statsInfo.textContent = `+${totalFoodGain} food, +${totalWoodGain} wood; -${foodUpkeep} food upkeep`;
+        }
     }
 }
 
