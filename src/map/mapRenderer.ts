@@ -41,6 +41,32 @@ export function renderMap(map: Tile[][], scene: Phaser.Scene, tileSize: number =
 }
 
 /**
+ * Clears all rendered map elements (tiles and yurts) from the scene.
+ * This is useful when loading a new map state.
+ * @param scene The Phaser.Scene to clear elements from.
+ */
+export function clearMapRender(scene: Phaser.Scene): void {
+    // Destroy all game objects that are part of the map rendering
+    // This typically includes graphics objects for tiles and sprites for yurts.
+    // A more robust way might involve tagging these objects or keeping references.
+    scene.children.getAll().forEach(child => {
+        // Assuming yurts are sprites and map tiles are graphics
+        // Adjust this logic if you have other types of map-related game objects
+        if (child instanceof Phaser.GameObjects.Graphics || child instanceof Phaser.GameObjects.Sprite) {
+            // Further check if it's a yurt sprite (e.g., by texture key or a custom property)
+            if (child instanceof Phaser.GameObjects.Sprite && child.texture.key === 'yurt') {
+                child.destroy();
+            }
+            // For graphics, we assume all current graphics objects are map tiles.
+            // This might need refinement if other graphics are used in the scene.
+            else if (child instanceof Phaser.GameObjects.Graphics) {
+                child.destroy(); 
+            }
+        }
+    });
+}
+
+/**
  * Highlights a specific tile on the map.
  * @param tile The tile to highlight.
  * @param scene The Phaser.Scene to draw on.
@@ -74,4 +100,4 @@ export function addYurtToMap(x: number, y: number, scene: Phaser.Scene, tileSize
     yurt.setDisplaySize(tileSize * 0.8, tileSize * 0.8);
     
     return yurt;
-} 
+}

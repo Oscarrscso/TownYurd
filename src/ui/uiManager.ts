@@ -51,7 +51,21 @@ export function initUI(scene: Phaser.Scene): ResourceCounters {
             window.dispatchEvent(new CustomEvent('cancel-action-clicked'));
         });
     }
-    
+
+    const saveGameBtn = document.getElementById('save-game-btn');
+    if (saveGameBtn) {
+        saveGameBtn.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('save-game-clicked'));
+        });
+    }
+
+    const loadGameBtn = document.getElementById('load-game-btn');
+    if (loadGameBtn) {
+        loadGameBtn.addEventListener('click', () => {
+            window.dispatchEvent(new CustomEvent('load-game-clicked'));
+        });
+    }
+
     // Create in-game UI elements (for backward compatibility)
     counters = {
         food: scene.add.text(20, 20, '', { font: '1px Arial', color: '#ffffff' }).setAlpha(0),
@@ -187,4 +201,4 @@ export function updateSelectedTileInfo(tile: Tile | null): void {
         <div>Terrain: ${terrainType}</div>
         <div>Occupied: ${tile.occupiedBy ? 'Yes' : 'No'}</div>
     `;
-} 
+}

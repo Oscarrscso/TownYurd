@@ -1,94 +1,95 @@
 import Phaser from 'phaser';
-import { generateMap } from './map/mapGenerator';
-import { renderMap, addYurtToMap, highlightTile } from './map/mapRenderer';
+// import { generateMap } from './map/mapGenerator'; // Removed, as DataManager now handles map generation
+import { renderMap, addYurtToMap, highlightTile, clearMapRender } from './map/mapRenderer';
 import { initUI, updateResourceUI, showMessage, updateSelectedTileInfo } from './ui/uiManager';
 import { YurtUnit, Tile, TerrainType } from './models';
+import { DataManager } from './data/DataManager'; // Import DataManager
 
 class GameScene extends Phaser.Scene {
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-    private mapSize = { rows: 30, cols: 40 }; // Increased map size
+    // private mapSize = { rows: 30, cols: 40 }; // Managed by DataManager
     private tileSize = 32;
-    private map: Tile[][] = [];
-    private yurtUnits: YurtUnit[] = [];
+    // private map: Tile[][] = []; // Managed by DataManager
+    // private yurtUnits: YurtUnit[] = []; // Managed by DataManager
     private selectedTile: Tile | null = null;
     private selectedTileHighlight: Phaser.GameObjects.Graphics | null = null;
-    private resources = { food: 100, wood: 50 };
+    // private resources = { food: 100, wood: 50 }; // Managed by DataManager
     private isPlacingYurt = false;
+
+    private dataManager!: DataManager; // Declare DataManager instance
 
     constructor() {
         super('GameScene');
     }
 
     preload() {
-        // Load assets
         this.load.image('yurt', 'assets/placeholder_yurt.png');
     }
 
     create() {
-        // Initialize controls
+        // Initialize DataManager
+        // TODO: Potentially load these initial values from a config or saved game later
+        this.dataManager = new DataManager(30, 40, { food: 100, wood: 50 });
+
         this.cursors = this.input.keyboard!.createCursorKeys();
-        
-        // Generate the map
-        this.map = generateMap(this.mapSize.rows, this.mapSize.cols);
-        
-        // Render the map
-        renderMap(this.map, this, this.tileSize);
-        
-        // Set camera bounds to the map size
+
+        // Render the map from DataManager
+        renderMap(this.dataManager.getMap(), this, this.tileSize);
+
         this.cameras.main.setBounds(
-            0, 0, 
-            this.mapSize.cols * this.tileSize, 
-            this.mapSize.rows * this.tileSize
+            0, 0,
+            this.dataManager.getMapSize().cols * this.tileSize,
+            this.dataManager.getMapSize().rows * this.tileSize
         );
-        
-        // Initialize the UI
+
         initUI(this);
-        
-        // Create initial yurt unit
-        this.createInitialYurt();
-        
-        // Add mouse input for tile selection
+        this.createInitialYurt(); // Needs to use DataManager
+
         this.input.on('pointerdown', this.handleTileClick, this);
-        
-        // Add 'P' key for placing yurts
         this.input.keyboard!.on('keydown-P', () => {
             this.isPlacingYurt = !this.isPlacingYurt;
             showMessage(this, this.isPlacingYurt ? 'Placing Yurt: Click on a valid tile' : 'Yurt placement cancelled');
         });
-        
-        // Add sidebar button event listeners
+
         window.addEventListener('place-yurt-clicked', () => {
             this.isPlacingYurt = !this.isPlacingYurt;
             showMessage(this, this.isPlacingYurt ? 'Placing Yurt: Click on a valid tile' : 'Yurt placement cancelled');
         });
-        
+
         window.addEventListener('cancel-action-clicked', () => {
             if (this.isPlacingYurt) {
                 this.isPlacingYurt = false;
                 showMessage(this, 'Yurt placement cancelled');
             }
         });
-        
-        // Add welcome message
+
+        // Add event listeners for save and load
+        window.addEventListener('save-game-clicked', () => this.saveGame());
+        window.addEventListener('load-game-clicked', () => this.loadGame());
+
+
         showMessage(this, 'Welcome to TownYurd! Use WASD or arrows to move, P to place yurts');
-        
-        // Update the UI with initial values
-        updateResourceUI(this.resources, this.yurtUnits);
-        
-        // Clear selected tile info
+        updateResourceUI(this.dataManager.getResources(), this.dataManager.getYurtUnits());
         updateSelectedTileInfo(null);
 
-        // Start automatic resource gathering every 5 seconds
         this.time.addEvent({
-            delay: 5000,
+            delay: 5000, // Resource collection interval
             callback: this.collectResources,
             callbackScope: this,
             loop: true
         });
+
+        // Autosave every 60 seconds
+        this.time.addEvent({
+            delay: 60000,
+            callback: this.saveGame,
+            callbackScope: this,
+            loop: true,
+            args: [true] // Pass true to indicate autosave for a silent message
+        });
     }
 
     update() {
-        // Handle camera movement
         const cameraSpeed = 10;
         if (this.cursors.left.isDown || this.input.keyboard!.addKey('A').isDown) {
             this.cameras.main.scrollX -= cameraSpeed;
@@ -103,132 +104,102 @@ class GameScene extends Phaser.Scene {
             this.cameras.main.scrollY += cameraSpeed;
         }
     }
-    
+
     private handleTileClick(pointer: Phaser.Input.Pointer) {
-        // Convert screen coordinates to tile coordinates
         const x = Math.floor(pointer.worldX / this.tileSize);
         const y = Math.floor(pointer.worldY / this.tileSize);
-        
-        // Check if coordinates are within map bounds
-        if (x >= 0 && x < this.mapSize.cols && y >= 0 && y < this.mapSize.rows) {
-            const clickedTile = this.map[y][x];
-            
-            // Clear previous selection
+        const mapSize = this.dataManager.getMapSize();
+
+        if (x >= 0 && x < mapSize.cols && y >= 0 && y < mapSize.rows) {
+            const clickedTile = this.dataManager.getTile(x,y); // Use DataManager
+
             if (this.selectedTileHighlight) {
                 this.selectedTileHighlight.destroy();
                 this.selectedTileHighlight = null;
             }
-            
-            // Select the new tile
-            this.selectedTile = clickedTile;
-            this.selectedTileHighlight = highlightTile(clickedTile, this, this.tileSize);
-            
-            // Update the sidebar with selected tile info
-            updateSelectedTileInfo(clickedTile);
-            
-            // If in yurt placement mode, try to place a yurt
-            if (this.isPlacingYurt) {
-                this.tryPlaceYurt(clickedTile);
+            if (clickedTile){
+                this.selectedTile = clickedTile;
+                this.selectedTileHighlight = highlightTile(clickedTile, this, this.tileSize);
+                updateSelectedTileInfo(clickedTile);
+
+                if (this.isPlacingYurt) {
+                    this.tryPlaceYurt(clickedTile);
+                }
             }
         }
     }
-    
+
     private tryPlaceYurt(tile: Tile) {
-        // Check if the tile is valid for placing a yurt
+        const currentResources = this.dataManager.getResources();
         if (
-            tile.terrainType !== TerrainType.WATER && 
+            tile.terrainType !== TerrainType.WATER &&
             tile.terrainType !== TerrainType.MOUNTAIN &&
-            !tile.occupiedBy && 
-            this.resources.wood >= 25
+            !tile.occupiedBy &&
+            currentResources.wood >= 25
         ) {
-            // Create a new yurt
             const yurtId = `yurt_${Date.now()}`;
             const newYurt: YurtUnit = {
                 id: yurtId,
                 x: tile.x,
                 y: tile.y,
-                morale: 70 + Math.floor(Math.random() * 30), // Random initial morale
-                resources: {
-                    food: 0,
-                    wood: 0
-                }
+                morale: 70 + Math.floor(Math.random() * 30),
+                resources: { food: 0, wood: 0 }
             };
-            
-            // Add to the array of yurts
-            this.yurtUnits.push(newYurt);
-            
-            // Mark the tile as occupied
-            tile.occupiedBy = yurtId;
-            
-            // Render the yurt on the map
+
+            this.dataManager.addYurtUnit(newYurt); // Use DataManager
+            this.dataManager.updateResources(0, -25); // Use DataManager
+
             addYurtToMap(tile.x, tile.y, this, this.tileSize);
-            
-            // Deduct resources
-            this.resources.wood -= 25;
-            
-            // Update UI
-            updateResourceUI(this.resources, this.yurtUnits);
-            
-            // Show confirmation
+            updateResourceUI(this.dataManager.getResources(), this.dataManager.getYurtUnits());
             showMessage(this, 'Yurt placed successfully!');
-            
-            // Exit placement mode
             this.isPlacingYurt = false;
         } else {
-            // Show error message
             let reason = '';
             if (tile.terrainType === TerrainType.WATER) reason = 'Cannot build on water';
             else if (tile.terrainType === TerrainType.MOUNTAIN) reason = 'Cannot build on mountains';
             else if (tile.occupiedBy) reason = 'Tile is already occupied';
-            else if (this.resources.wood < 25) reason = 'Not enough wood (need 25)';
-            
+            else if (currentResources.wood < 25) reason = 'Not enough wood (need 25)';
             showMessage(this, `Cannot place yurt here. ${reason}`);
         }
     }
-    
+
     private createInitialYurt() {
-        // Find a suitable grass tile for the initial yurt
-        let startX = Math.floor(this.mapSize.cols / 2);
-        let startY = Math.floor(this.mapSize.rows / 2);
-        
-        // Make sure we don't start on water or mountains
-        while (
-            this.map[startY][startX].terrainType === TerrainType.WATER ||
-            this.map[startY][startX].terrainType === TerrainType.MOUNTAIN
-        ) {
-            startX = Math.floor(Math.random() * this.mapSize.cols);
-            startY = Math.floor(Math.random() * this.mapSize.rows);
+        const mapSize = this.dataManager.getMapSize();
+        let startX = Math.floor(mapSize.cols / 2);
+        let startY = Math.floor(mapSize.rows / 2);
+        let tile = this.dataManager.getTile(startX, startY);
+
+        while (tile && (tile.terrainType === TerrainType.WATER || tile.terrainType === TerrainType.MOUNTAIN)) {
+            startX = Math.floor(Math.random() * mapSize.cols);
+            startY = Math.floor(Math.random() * mapSize.rows);
+            tile = this.dataManager.getTile(startX, startY);
         }
         
-        // Create the initial yurt
-        const yurtId = 'first_yurt';
-        this.yurtUnits.push({
-            id: yurtId,
-            x: startX,
-            y: startY,
-            morale: 100,
-            resources: {
-                food: 0,
-                wood: 0
-            }
-        });
-        
-        // Mark the tile as occupied
-        this.map[startY][startX].occupiedBy = yurtId;
-        
-        // Add the yurt to the map
-        addYurtToMap(startX, startY, this, this.tileSize);
-        
-        // Center the camera on the initial yurt
-        this.cameras.main.centerOn(startX * this.tileSize, startY * this.tileSize);
+        if (tile) { // Ensure tile is not null
+            const yurtId = 'first_yurt';
+            const initialYurt: YurtUnit = {
+                id: yurtId,
+                x: startX,
+                y: startY,
+                morale: 100,
+                resources: { food: 0, wood: 0 }
+            };
+            this.dataManager.addYurtUnit(initialYurt); // Use DataManager
+    
+            addYurtToMap(startX, startY, this, this.tileSize);
+            this.cameras.main.centerOn(startX * this.tileSize, startY * this.tileSize);
+        } else {
+            console.error("Could not find a suitable tile for the initial yurt.");
+        }
     }
 
-    // Automatically gather resources for each yurt from nearby tiles
     private collectResources(): void {
         let totalFoodGain = 0;
         let totalWoodGain = 0;
-        // Gather resources per yurt
-        for (const yurt of this.yurtUnits) {
+        const mapSize = this.dataManager.getMapSize();
+        const yurts = this.dataManager.getYurtUnits();
+
+        for (const yurt of yurts) {
             let foodGain = 0;
             let woodGain = 0;
             for (let dy = -1; dy <= 1; dy++) {
@@ -236,42 +207,104 @@ class GameScene extends Phaser.Scene {
                     if (dx === 0 && dy === 0) continue;
                     const nx = yurt.x + dx;
                     const ny = yurt.y + dy;
-                    if (nx >= 0 && nx < this.mapSize.cols && ny >= 0 && ny < this.mapSize.rows) {
-                        const tile = this.map[ny][nx];
-                        if (tile.terrainType === TerrainType.FOREST) woodGain++;
-                        else if (tile.terrainType === TerrainType.GRASS) foodGain++;
+                    if (nx >= 0 && nx < mapSize.cols && ny >= 0 && ny < mapSize.rows) {
+                        const tile = this.dataManager.getTile(nx, ny); // Use DataManager
+                        if (tile && tile.resourceYield) {
+                            foodGain += tile.resourceYield.food || 0;
+                            woodGain += tile.resourceYield.wood || 0;
+                        }
                     }
                 }
             }
-            // Accumulate total gains
             totalWoodGain += woodGain;
             totalFoodGain += foodGain;
-            // Apply gains to resources
-            this.resources.wood += woodGain;
-            this.resources.food += foodGain;
-            yurt.resources.wood += woodGain;
-            yurt.resources.food += foodGain;
+            // Yurt specific resources can be updated here if needed:
+            // yurt.resources.wood += woodGain;
+            // yurt.resources.food += foodGain;
         }
-        // Food upkeep: each yurt consumes 1 food per cycle
-        const foodUpkeep = this.yurtUnits.length;
-        this.resources.food -= foodUpkeep;
-        // Update UI and show net resource change
-        updateResourceUI(this.resources, this.yurtUnits);
+
+        const foodUpkeep = yurts.length;
+        this.dataManager.updateResources(totalFoodGain - foodUpkeep, totalWoodGain); // Use DataManager
+
+        updateResourceUI(this.dataManager.getResources(), yurts);
         showMessage(
             this,
             `Resources this cycle: +${totalFoodGain} food, +${totalWoodGain} wood; Upkeep: -${foodUpkeep} food`
         );
-        // Update persistent stats in sidebar
         const statsInfo = document.getElementById('stats-info');
         if (statsInfo) {
             statsInfo.textContent = `+${totalFoodGain} food, +${totalWoodGain} wood; -${foodUpkeep} food upkeep`;
+        }
+    }
+
+    private saveGame(isAutosave: boolean = false): void {
+        try {
+            const serializedState = this.dataManager.serializeGameState();
+            localStorage.setItem('townYurdSaveData', serializedState);
+            if (isAutosave) {
+                console.log('Game autosaved.'); // Silent save, log to console
+            } else {
+                showMessage(this, 'Game Saved!');
+            }
+        } catch (error) {
+            console.error('Error saving game:', error);
+            showMessage(this, 'Failed to save game.');
+        }
+    }
+
+    private loadGame(): void {
+        try {
+            const savedData = localStorage.getItem('townYurdSaveData');
+            if (savedData) {
+                this.dataManager.deserializeGameState(savedData);
+                
+                // Clear existing visual map elements
+                clearMapRender(this); // You'll need to implement this in mapRenderer.ts
+                
+                // Re-render map
+                renderMap(this.dataManager.getMap(), this, this.tileSize);
+                
+                // Re-render yurts
+                this.dataManager.getYurtUnits().forEach(yurt => {
+                    addYurtToMap(yurt.x, yurt.y, this, this.tileSize);
+                });
+
+                // Update UI
+                updateResourceUI(this.dataManager.getResources(), this.dataManager.getYurtUnits());
+                
+                // Update camera bounds
+                 this.cameras.main.setBounds(
+                    0, 0,
+                    this.dataManager.getMapSize().cols * this.tileSize,
+                    this.dataManager.getMapSize().rows * this.tileSize
+                );
+                // Center camera on the first yurt or a default position
+                const yurts = this.dataManager.getYurtUnits();
+                if (yurts.length > 0) {
+                     this.cameras.main.centerOn(yurts[0].x * this.tileSize, yurts[0].y * this.tileSize);
+                } else {
+                    this.cameras.main.centerOn(0,0); // Or some other default
+                }
+
+                showMessage(this, 'Game Loaded!');
+            } else {
+                showMessage(this, 'No saved game found.');
+            }
+        } catch (error) {
+            console.error('Error loading game:', error);
+            showMessage(this, 'Failed to load game.');
+            // Optionally, initialize a new game state if loading fails catastrophically
+            // this.dataManager = new DataManager(30, 40, { food: 100, wood: 50 });
+            // renderMap(this.dataManager.getMap(), this, this.tileSize);
+            // this.createInitialYurt();
+            // updateResourceUI(this.dataManager.getResources(), this.dataManager.getYurtUnits());
         }
     }
 }
 
 const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
-    width: window.innerWidth - 250, // Adjust for sidebar width
+    width: window.innerWidth - 250,
     height: window.innerHeight,
     parent: 'game-container',
     scene: [GameScene],
@@ -288,10 +321,8 @@ const config: Phaser.Types.Core.GameConfig = {
     }
 };
 
-// Create the game instance
 const game = new Phaser.Game(config);
 
-// Handle window resizing
 window.addEventListener('resize', () => {
     game.scale.resize(window.innerWidth - 250, window.innerHeight);
 });

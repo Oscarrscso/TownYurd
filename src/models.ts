@@ -11,6 +11,7 @@ export interface Tile {
     y: number;
     terrainType: TerrainType;
     occupiedBy?: string; // ID of YurtUnit or null/undefined if not occupied
+    resourceYield?: { food?: number; wood?: number; [key: string]: number | undefined };
 }
 
 export interface YurtUnit {
@@ -23,4 +24,4 @@ export interface YurtUnit {
         wood: number;
         // Add other resources as needed
     };
-} 
+}
